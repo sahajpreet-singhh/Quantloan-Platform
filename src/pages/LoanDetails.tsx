@@ -1,15 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Sparkles, Phone, Mail, MapPin, User } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Phone, Mail, MapPin, User } from 'lucide-react';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-
-const aiInitKey = process.env.GEMINI_API_KEY;
-// Note: We initialize inside the function to be safer with dynamic keys, 
-// but we keep this as a fallback if needed.
 
 enum OperationType {
   WRITE = 'write',
@@ -21,38 +16,16 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
   console.error('Firestore Error: ', error);
 }
 
-declare global {
-  interface Window {
-    aistudio?: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
-
 export default function LoanDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loan, setLoan] = useState<any>(null);
   const [simAmount, setSimAmount] = useState(50000);
   const [investing, setInvesting] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const { user, profile } = useAuth();
 
   useEffect(() => {
     if (!id) return;
-    
-    // Check for API key if using models that might need it
-    const checkApiKey = async () => {
-      if (window.aistudio && !process.env.GEMINI_API_KEY && !process.env.API_KEY) {
-        const hasKey = await window.aistudio.hasSelectedApiKey?.();
-        if (!hasKey) {
-          console.log("No API key detected, prompt might be needed");
-        }
-      }
-    };
-    checkApiKey();
 
     const fetchLoan = async () => {
       try {
@@ -61,7 +34,6 @@ export default function LoanDetails() {
         if (docSnap.exists()) {
           const loanData = { id: docSnap.id, ...docSnap.data() };
           setLoan(loanData);
-          runAiAnalysis(loanData);
         } else {
           console.error("No such loan!");
           navigate('/marketplace');
@@ -73,66 +45,6 @@ export default function LoanDetails() {
 
     fetchLoan();
   }, [id, navigate]);
-
-  const runAiAnalysis = async (loanData: any) => {
-    let apiKey = process.env.GEMINI_API_KEY || (process.env as any).API_KEY;
-    
-    // Fallback selection if no key is present
-    if (!apiKey && window.aistudio) {
-      try {
-        const hasKey = await window.aistudio.hasSelectedApiKey?.();
-        if (!hasKey) {
-          await window.aistudio.openSelectKey?.();
-        }
-        // In this environment, the key selection injects via process.env.API_KEY
-        apiKey = (process.env as any).API_KEY;
-      } catch (err) {
-        console.error("Key selection failed", err);
-      }
-    }
-
-    if (!loanData || !apiKey) {
-      console.warn("AI Analysis aborted: missing data or API key", { hasData: !!loanData, hasKey: !!apiKey });
-      setAiAnalysis("AI reasoning requires a Gemini API key. Please check your platform settings.");
-      return;
-    }
-    
-    setAnalyzing(true);
-    try {
-      const genAI = new GoogleGenAI({ apiKey });
-      const prompt = `You are a high-end Quant Bank Analyst. Analyze this enterprise loan request and provide a 3-paragraph "Deep Tissue Analysis":
-      Company: ${loanData.companyName}
-      Purpose: ${loanData.purpose}
-      Amount: ₹${loanData.amount}
-      Interest Rate: ${loanData.interestRate}%
-      Risk Grade: ${loanData.grade}
-      Metrics: Revenue ${loanData.revenue}%, Profit ${loanData.profit}%, Debt ${loanData.debt}%, Cashflow ${loanData.cashflow}%
-      
-      Structure:
-      1. Business Model Vulnerability Assessment.
-      2. Quantitative Risk Factors (based on the percentages).
-      3. Strategic recommendation for institutional investors.
-      Keep it professional, technical, and data-driven. Use markdown for bolding key terms.`;
-
-      const response = await genAI.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-      });
-
-      setAiAnalysis(response.text);
-    } catch (err: any) {
-      console.error("AI Analysis failed:", err);
-      if (err.message?.includes('403') || err.message?.includes('PERMISSION_DENIED') || err.message?.includes('API_KEY_INVALID')) {
-        setAiAnalysis("Analysis paused: API authorization failed. Please verify your Gemini API key in the Platform Settings.");
-      } else if (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED')) {
-        setAiAnalysis("Analysis paused: Gemini quota exceeded. Please try again in a few minutes or upgrade your plan.");
-      } else {
-        setAiAnalysis("Unable to generate AI analysis at this time.");
-      }
-    } finally {
-      setAnalyzing(false);
-    }
-  };
 
   const handleInvest = async () => {
     if (!user || !loan || profile?.role !== 'Investor') return;
@@ -273,24 +185,6 @@ export default function LoanDetails() {
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="mt-8 pt-8 border-t border-slate-100">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-600">
-                  <Sparkles className="w-5 h-5" />
-                  QuantBank AI Reasoning
-                </h3>
-                {analyzing ? (
-                   <div className="flex flex-col gap-3">
-                      <div className="h-4 bg-slate-100 animate-pulse rounded w-full" />
-                      <div className="h-4 bg-slate-100 animate-pulse rounded w-3/4" />
-                      <div className="h-4 bg-slate-100 animate-pulse rounded w-5/6" />
-                   </div>
-                ) : (
-                  <div className="text-slate-600 text-sm leading-relaxed whitespace-pre-line prose prose-slate max-w-none">
-                    {aiAnalysis || "Risk analysis summary generated by Quant Engine."}
-                  </div>
-                )}
               </div>
             </motion.div>
 
