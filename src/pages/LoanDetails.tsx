@@ -1,11 +1,23 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { motion } from 'motion/react';
-import { ArrowLeft, Calculator, TrendingUp, AlertTriangle, CheckCircle2, ChevronRight, Info, LogOut, Sparkles, Activity, ShieldCheck, PieChart as ChartIcon } from 'lucide-react';
+import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Sparkles } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+enum OperationType {
+  WRITE = 'write',
+  CREATE = 'create',
+  GET = 'get',
+}
+
+function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
+  console.error('Firestore Error: ', error);
+}
 
 export default function LoanDetails() {
   const { id } = useParams();
@@ -15,24 +27,40 @@ export default function LoanDetails() {
   const [investing, setInvesting] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user, profile } = useAuth();
 
   useEffect(() => {
-    axios.get(`/api/loans/${id}`).then(res => {
-      setLoan(res.data);
-      runAiAnalysis(res.data);
-    });
-  }, [id]);
+    if (!id) return;
+    
+    const fetchLoan = async () => {
+      try {
+        const docRef = doc(db, 'loans', id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const loanData = { id: docSnap.id, ...docSnap.data() };
+          setLoan(loanData);
+          runAiAnalysis(loanData);
+        } else {
+          console.error("No such loan!");
+          navigate('/marketplace');
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `loans/${id}`);
+      }
+    };
+
+    fetchLoan();
+  }, [id, navigate]);
 
   const runAiAnalysis = async (loanData: any) => {
     if (!loanData || !process.env.GEMINI_API_KEY) return;
     setAnalyzing(true);
     try {
       const prompt = `You are a high-end Quant Bank Analyst. Analyze this enterprise loan request and provide a 3-paragraph "Deep Tissue Analysis":
-      Company: ${loanData.company_name}
+      Company: ${loanData.companyName}
       Purpose: ${loanData.purpose}
       Amount: ₹${loanData.amount}
-      Interest Rate: ${loanData.interest_rate}%
+      Interest Rate: ${loanData.interestRate}%
       Risk Grade: ${loanData.grade}
       Metrics: Revenue ${loanData.revenue}%, Profit ${loanData.profit}%, Debt ${loanData.debt}%, Cashflow ${loanData.cashflow}%
       
@@ -57,35 +85,30 @@ export default function LoanDetails() {
   };
 
   const handleInvest = async () => {
+    if (!user || !loan || profile?.role !== 'Investor') return;
     setInvesting(true);
     try {
-      await axios.post('/api/investments', { 
-        loan_id: id, 
-        amount: simAmount 
-      }, { 
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } 
+      await addDoc(collection(db, 'investments'), {
+        investorId: user.uid,
+        loanId: loan.id,
+        amount: simAmount,
+        companyName: loan.companyName,
+        grade: loan.grade,
+        interestRate: loan.interestRate,
+        createdAt: serverTimestamp()
       });
       alert('Investment execution successful! Position added to portfolio.');
       navigate('/dashboard');
-    } catch(err) {
-      alert('Error executing investment.');
+    } catch(err: any) {
+      console.error("Investment Error:", err);
+      handleFirestoreError(err, OperationType.CREATE, 'investments');
+      alert("Error executing investment. Check permissions and network.");
     } finally {
       setInvesting(false);
     }
   };
 
-  const logout = () => {
-    localStorage.clear();
-    navigate('/');
-  };
-
   if(!loan) return null;
-
-  const interestEarned = simAmount * (loan.interest_rate / 100) * (loan.tenure / 12);
-  const defaultProb = loan.grade === 'A' ? 0.015 : loan.grade === 'B' ? 0.045 : 0.11;
-  const expectedReturn = interestEarned - (defaultProb * simAmount);
-  const bestCase = simAmount + interestEarned;
-  const expectedTotal = simAmount + expectedReturn;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -97,7 +120,7 @@ export default function LoanDetails() {
           <h1 className="text-xl font-bold text-slate-800">Loan Analysis</h1>
         </div>
         <div className="flex items-center gap-4">
-           <span className="text-sm text-slate-500 font-medium">Investor: <span className="text-slate-900 font-bold">{user.name}</span></span>
+           <span className="text-sm text-slate-500 font-medium whitespace-nowrap">Investor: <span className="text-slate-900 font-bold">{profile?.name}</span></span>
         </div>
       </header>
 
@@ -113,7 +136,7 @@ export default function LoanDetails() {
             >
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">{loan.company_name}</h2>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">{loan.companyName}</h2>
                   <p className="text-slate-500 mt-1 flex items-center gap-2">
                     <Building className="w-4 h-4" />
                     Enterprise Sector: FinTech
@@ -135,11 +158,11 @@ export default function LoanDetails() {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider mb-1">Interest</p>
-                  <p className="text-xl font-bold text-blue-600">{loan.interest_rate}%</p>
+                  <p className="text-xl font-bold text-blue-600">{loan.interestRate}%</p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider mb-1">Tenure</p>
-                  <p className="text-xl font-bold text-slate-900">12 Months</p>
+                  <p className="text-xl font-bold text-slate-900">{loan.tenure} Months</p>
                 </div>
               </div>
 
@@ -150,6 +173,24 @@ export default function LoanDetails() {
                   retention rate of 85%. The capital will be deployed primarily for operational scaling 
                   and infrastructure modularization.
                 </p>
+              </div>
+
+              <div className="mt-8 pt-8 border-t border-slate-100">
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-blue-600">
+                  <Sparkles className="w-5 h-5" />
+                  QuantBank AI Reasoning
+                </h3>
+                {analyzing ? (
+                   <div className="flex flex-col gap-3">
+                      <div className="h-4 bg-slate-100 animate-pulse rounded w-full" />
+                      <div className="h-4 bg-slate-100 animate-pulse rounded w-3/4" />
+                      <div className="h-4 bg-slate-100 animate-pulse rounded w-5/6" />
+                   </div>
+                ) : (
+                  <div className="text-slate-600 text-sm leading-relaxed whitespace-pre-line prose prose-slate max-w-none">
+                    {aiAnalysis || "Risk analysis summary generated by Quant Engine."}
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -166,13 +207,14 @@ export default function LoanDetails() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {[
                     { label: 'Revenue Strength', val: loan.revenue, icon: TrendingUp },
-                    { label: 'Profitability Margin', val: loan.profit, icon: ChartIcon },
+                    { label: 'Profitability Margin', val: loan.profit, icon: Wallet },
                     { label: 'Debt to Equity', val: loan.debt, icon: Briefcase },
                     { label: 'Cashflow Liquidity', val: loan.cashflow, icon: Wallet }
                   ].map((stat, i) => (
                     <div key={i} className="space-y-3">
                        <div className="flex justify-between items-end">
                          <span className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                           {/* @ts-ignore */}
                            <stat.icon className="w-4 h-4 text-slate-400" />
                            {stat.label}
                          </span>
@@ -208,7 +250,7 @@ export default function LoanDetails() {
                    </div>
                    <div className="flex justify-between border-b border-white/10 pb-4">
                       <span className="text-slate-400 text-sm">Est. Annual Return</span>
-                      <span className="text-emerald-400 font-bold">₹{(loan.amount * (loan.interest_rate/100)).toLocaleString()}</span>
+                      <span className="text-emerald-400 font-bold">₹{(loan.amount * (loan.interestRate/100)).toLocaleString()}</span>
                    </div>
                    <div className="flex justify-between">
                       <span className="text-slate-400 text-sm">Risk Adjusted Alpha</span>
@@ -228,13 +270,16 @@ export default function LoanDetails() {
                   </div>
 
                   <button 
-                    disabled={investing || !simAmount}
+                    disabled={investing || !simAmount || profile?.role !== 'Investor'}
                     onClick={handleInvest}
                     className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold text-lg hover:bg-blue-500 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                   >
                     {investing ? 'Executing...' : 'Confirm Placement'}
                     <ChevronRight className="w-5 h-5" />
                   </button>
+                  {profile?.role !== 'Investor' && (
+                    <p className="text-rose-400 text-[10px] text-center mt-2 font-bold uppercase tracking-widest">Only Investors can confirm placements</p>
+                  )}
                 </div>
 
                 <p className="text-[10px] text-slate-500 mt-6 text-center leading-relaxed">

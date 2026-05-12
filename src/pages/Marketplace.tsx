@@ -1,38 +1,47 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Search, Filter, ArrowUpRight, ShieldCheck, ChevronRight, LayoutDashboard, LogOut, Info } from 'lucide-react';
+import { Search, ArrowUpRight, ShieldCheck, ChevronRight, LogOut } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+
+enum OperationType {
+  LIST = 'list',
+  GET = 'get',
+}
+
+function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
+  console.error('Firestore Error: ', error);
+}
 
 export default function Marketplace() {
-  const [loans, setLoans] = useState([]);
+  const [loans, setLoans] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { profile, logout } = useAuth();
 
   useEffect(() => {
-    axios.get('/api/loans/marketplace')
-      .then(res => setLoans(res.data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const q = query(collection(db, 'loans'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setLoans(loanData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'loans');
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const logout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
   const filtered = filter === 'All' ? loans : loans.filter((l: any) => l.grade === filter);
-
-  const getGradeColor = (grade: string) => {
-    switch(grade) {
-      case 'A': return 'text-emerald-500';
-      case 'B': return 'text-amber-500';
-      case 'C': return 'text-rose-500';
-      default: return 'text-slate-500';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -51,8 +60,8 @@ export default function Marketplace() {
           </nav>
           <div className="h-6 w-px bg-slate-200" />
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-500 font-medium hidden sm:block">Investor: <span className="text-slate-900 font-bold">{user.name}</span></span>
-            <button onClick={logout} className="text-slate-400 hover:text-red-500 transition-colors">
+            <span className="text-sm text-slate-500 font-medium hidden sm:block">Investor: <span className="text-slate-900 font-bold">{profile?.name}</span></span>
+            <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
           </div>
@@ -105,7 +114,7 @@ export default function Marketplace() {
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-6">
                     <div>
-                      <h3 className="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{loan.company_name}</h3>
+                      <h3 className="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{loan.companyName}</h3>
                       <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
                         Purpose: <span className="text-slate-700 font-medium truncate max-w-[150px]">{loan.purpose}</span>
                       </p>
@@ -126,13 +135,13 @@ export default function Marketplace() {
                     </div>
                     <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
                       <p className="text-[10px] uppercase font-black text-blue-400 tracking-wider mb-1">Interest Rate</p>
-                      <p className="text-lg font-bold text-blue-700">{loan.interest_rate}%</p>
+                      <p className="text-lg font-bold text-blue-700">{loan.interestRate}%</p>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between text-sm text-slate-400 mb-6">
                     <span className="flex items-center gap-1"><ArrowUpRight className="w-3.5 h-3.5" /> ROI Expectation</span>
-                    <span className="text-slate-800 font-bold">{Number(loan.interest_rate) - 2}% Net</span>
+                    <span className="text-slate-800 font-bold">{Number(loan.interestRate) - 2}% Net</span>
                   </div>
 
                   <button 

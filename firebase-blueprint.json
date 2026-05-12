@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["Investor", "Borrower"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Loan": {
+      "title": "Loan Listing",
+      "description": "Enterprise loan request with quantitative risk scores.",
+      "type": "object",
+      "properties": {
+        "borrowerId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "companyDescription": { "type": "string" },
+        "amount": { "type": "number" },
+        "purpose": { "type": "string" },
+        "status": { "type": "string", "enum": ["Open", "Funded", "Closed"] },
+        "grade": { "type": "string", "enum": ["A", "B", "C"] },
+        "score": { "type": "number" },
+        "interestRate": { "type": "number" },
+        "tenure": { "type": "number" },
+        "revenue": { "type": "number" },
+        "profit": { "type": "number" },
+        "debt": { "type": "number" },
+        "cashflow": { "type": "number" },
+        "explanation": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["borrowerId", "amount", "status", "companyName"]
+    },
+    "Investment": {
+      "title": "Investment Position",
+      "description": "An investor's stake in a specific loan.",
+      "type": "object",
+      "properties": {
+        "investorId": { "type": "string" },
+        "loanId": { "type": "string" },
+        "amount": { "type": "number" },
+        "companyName": { "type": "string" },
+        "grade": { "type": "string" },
+        "interestRate": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["investorId", "loanId", "amount"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    },
+    "/loans/{loanId}": {
+      "schema": "Loan",
+      "description": "Marketplace loan listings."
+    },
+    "/investments/{investmentId}": {
+      "schema": "Investment",
+      "description": "Investor holdings."
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
-  "name": "Remix: QuantLoan Platform",
-  "description": "A sophisticated quant-based loan marketplace with risk scoring, investment simulations, and portfolio optimization for borrowers and investors.",
+  "name": "QuantBank Protocol",
+  "description": "An institutional-grade P2P lending protocol with real-time quantitative risk scoring and Firebase-powered ledger system.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

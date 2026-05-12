@@ -1,51 +1,111 @@
-import { useState } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { LayoutDashboard, LogOut, Send, AlertCircle, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, LogOut, Send, AlertCircle } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: db.app.options.apiKey ? 'active' : 'unknown', // Simplified check since we don't have auth.currentUser easily here without passing it
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  return JSON.stringify(errInfo);
+}
 
 export default function BorrowerForm() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const { user, profile, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     company_name: '',
-    company_description: '',
     purpose: '',
     amount: '',
     interest_rate: '',
-    tenure: '12',
     revenue: '',
     profit: '',
     debt: '',
     cashflow: ''
   });
 
-  const logout = () => {
-    localStorage.clear();
+  const handleLogout = async () => {
+    await logout();
     navigate('/');
   };
 
   const submitLoan = async (e: any) => {
     e.preventDefault();
+    if (!user || profile?.role !== 'Borrower') return;
     setLoading(true);
+    
     try {
-      await axios.post('/api/loans/request', {
-        ...form,
+      const rev = Number(form.revenue);
+      const prf = Number(form.profit);
+      const dbt = Number(form.debt);
+      const csh = Number(form.cashflow);
+
+      let rawScore = (rev * 0.3) + (prf * 0.3) - (dbt * 0.2) + (csh * 0.2);
+      let score = Math.max(0, Math.min(100, Math.round(rawScore)));
+      let grade: 'A' | 'B' | 'C' = 'C';
+      if (score >= 80) grade = 'A';
+      else if (score >= 60) grade = 'B';
+
+      let explanation = `Risk Grade ${grade}. `;
+      if (dbt > prf) explanation += "High debt relative to profit increases risk. ";
+      if (csh > dbt) explanation += "Strong cashflow minimizes default probability. ";
+      if (rev > 80 && prf > 60) explanation += "Solid revenue and margins. ";
+
+      await addDoc(collection(db, 'loans'), {
+        borrowerId: user.uid,
+        companyName: form.company_name,
         amount: Number(form.amount),
-        interest_rate: Number(form.interest_rate),
-        tenure: Number(form.tenure),
-        revenue: Number(form.revenue),
-        profit: Number(form.profit),
-        debt: Number(form.debt),
-        cashflow: Number(form.cashflow)
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        interestRate: Number(form.interest_rate),
+        revenue: rev,
+        profit: prf,
+        debt: dbt,
+        cashflow: csh,
+        score: score,
+        grade: grade,
+        explanation: explanation,
+        purpose: form.purpose,
+        status: 'Open',
+        createdAt: serverTimestamp()
+      }).catch(err => {
+        handleFirestoreError(err, OperationType.CREATE, 'loans');
+        throw err;
       });
-      alert('Loan Requested Successfully! Our Quant Engine has evaluated your risk profile.');
+
+      alert(`Loan Application Submitted!\n\nEngine Result: SCORE ${score}\nAssigned Grade: ${grade}`);
       navigate('/marketplace');
     } catch (err) {
-      alert('Error submitting loan. Please ensure all metrics are between 1 and 100 for evaluation.');
+      console.error("Submission Error:", err);
+      alert("Error submitting loan application. Access restricted or network error.");
     } finally {
       setLoading(false);
     }
@@ -62,8 +122,8 @@ export default function BorrowerForm() {
           <h1 className="text-xl font-bold text-slate-800">Borrower Portal</h1>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-500 font-medium">Welcome, <span className="text-slate-900 font-bold">{user.name}</span></span>
-          <button onClick={logout} className="flex items-center gap-2 text-slate-600 hover:text-red-600 transition-colors text-sm font-medium">
+          <span className="text-sm text-slate-500 font-medium">Welcome, <span className="text-slate-900 font-bold">{profile?.name}</span></span>
+          <button onClick={handleLogout} className="flex items-center gap-2 text-slate-600 hover:text-red-600 transition-colors text-sm font-medium">
             <LogOut className="w-4 h-4" />
             Sign Out
           </button>
