@@ -166,13 +166,22 @@ export default function LoanDetails() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h3 className="font-bold text-slate-800">Business Case</h3>
-                <p className="text-slate-600 leading-relaxed">
-                  {loan.purpose}. This investment is backed by a diversified revenue stream with a historical 
-                  retention rate of 85%. The capital will be deployed primarily for operational scaling 
-                  and infrastructure modularization.
-                </p>
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-2">Company Profile</h3>
+                  <p className="text-slate-600 leading-relaxed">
+                    {loan.companyDescription || "No detailed company profile provided."}
+                  </p>
+                </div>
+                
+                <div>
+                  <h3 className="font-bold text-slate-800 mb-2">Business Case & Capital Deployment</h3>
+                  <p className="text-slate-600 leading-relaxed">
+                    {loan.purpose}. This investment is backed by a diversified revenue stream with a historical 
+                    retention rate of 85%. The capital will be deployed primarily for operational scaling 
+                    and infrastructure modularization.
+                  </p>
+                </div>
               </div>
 
               <div className="mt-8 pt-8 border-t border-slate-100">

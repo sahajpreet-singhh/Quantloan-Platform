@@ -14,6 +14,7 @@ interface AuthContextType {
   user: FirebaseUser | null;
   profile: UserProfile | null;
   loading: boolean;
+  error: string | null;
   logout: () => Promise<void>;
 }
 
@@ -58,6 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | undefined;
@@ -67,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (u) {
         setLoading(true);
+        setError(null);
         // Sync profile from Firestore
         const profileRef = doc(db, 'users', u.uid);
         unsubscribeProfile = onSnapshot(profileRef, (docSnap) => {
@@ -76,14 +79,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setProfile(null);
           }
           setLoading(false);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${u.uid}`);
+          setError(null);
+        }, (err) => {
+          console.error("Profile onSnapshot error:", err);
+          handleFirestoreError(err, OperationType.GET, `users/${u.uid}`);
+          setError(`Identity Access Denied: ${err.message}. If this persists, please check Firestore Rules.`);
           setLoading(false);
         });
       } else {
         if (unsubscribeProfile) unsubscribeProfile();
         setProfile(null);
         setLoading(false);
+        setError(null);
       }
     });
 
@@ -98,7 +105,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, error, logout }}>
       {children}
     </AuthContext.Provider>
   );

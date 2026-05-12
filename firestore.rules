@@ -24,15 +24,13 @@ service cloud.firestore {
 
     // 1. Users Collection
     match /users/{userId} {
-      allow get: if isSignedIn() && (userId == request.auth.uid);
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
+      allow read, write: if isSignedIn() && (userId == request.auth.uid);
     }
 
     // 2. Loans Collection
     match /loans/{loanId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && incoming().borrowerId == request.auth.uid;
       allow update: if isSignedIn() && existing().borrowerId == request.auth.uid;
     }
 

@@ -57,7 +57,8 @@ export default function Auth() {
   const [selectedRole, setSelectedRole] = useState<'Investor' | 'Borrower'>('Investor');
   
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading, error: authError } = useAuth();
+  const currentUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
   useEffect(() => {
     if (user && profile) {
@@ -69,21 +70,19 @@ export default function Auth() {
     let handled = false;
     try {
       const docRef = doc(db, 'users', authUser.uid);
-      const docSnap = await getDoc(docRef).catch(err => {
-        const info = handleFirestoreError(err, OperationType.GET, `users/${authUser.uid}`);
-        setErrorMsg(`Critical Identity Sync Failure: ${info}`);
-        handled = true;
-        throw err;
-      });
+      const docSnap = await getDoc(docRef);
 
       if (!docSnap.exists()) {
         setShowRoleSelection(true);
+        setLoading(false); // Stop local spinner
       } else {
         navigate('/marketplace');
       }
     } catch (err: any) {
       console.error("Profile check error:", err);
-      if (!handled) setErrorMsg("Identity validation failed. Please check your network or try a different login method.");
+      const info = handleFirestoreError(err, OperationType.GET, `users/${authUser.uid}`);
+      setErrorMsg(`Profile Access Error: ${info}. Check if Firestore is enabled for this project.`);
+      setLoading(false);
     }
   };
 
@@ -98,7 +97,7 @@ export default function Auth() {
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg("Sign-in window was closed. Please try again.");
       } else if (err.code === 'auth/unauthorized-domain') {
-        setErrorMsg("This domain is not authorized in Firebase Console. Go to Authentication > Settings > Authorized Domains and add your Vercel URL.");
+        setErrorMsg(`Authorized Domain Error: The domain ${currentUrl} is not authorized in Firebase Console. Please add it to Authentication > Settings > Authorized Domains.`);
       } else {
         setErrorMsg(err.message || "Authentication failed!");
       }
@@ -124,7 +123,7 @@ export default function Auth() {
     } catch (err: any) {
       console.error("Email Auth Error:", err);
       if (err.code === 'auth/unauthorized-domain') {
-        setErrorMsg("Authorized Domain Error: This URL is not allowed to sign in. In Firebase Console, go to Authentication > Settings > Authorized Domains and add your current URL.");
+        setErrorMsg(`Authorized Domain Error: The domain ${currentUrl} is not allowed. In Firebase Console, go to Authentication > Settings > Authorized Domains and add this exact URL.`);
       } else if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg("Sign-in Method Disabled: Email/Password sign-in is not enabled. In Firebase Console, go to Authentication > Sign-in method and enable 'Email/Password'.");
       } else if (isLogin) {
@@ -135,7 +134,10 @@ export default function Auth() {
         }
       } else {
         if (err.code === 'auth/email-already-in-use') {
-          setErrorMsg("User already exists. Please sign in.");
+          setErrorMsg("An account with this email already exists. Please sign in instead.");
+          setIsLogin(true); // Automatically switch to login for better UX
+        } else if (err.code === 'auth/weak-password') {
+          setErrorMsg("Password is too weak. Please use at least 6 characters.");
         } else {
           setErrorMsg(err.message || "Signup failed.");
         }
@@ -302,6 +304,20 @@ export default function Auth() {
             <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-sm font-medium flex gap-2 items-start animate-shake">
               <span className="shrink-0 text-rose-400">⚠️</span>
               <p>{errorMsg}</p>
+            </div>
+          )}
+
+          {authError && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-sm font-medium flex gap-2 items-start">
+              <span className="shrink-0 text-amber-400">⚠️</span>
+              <p>{authError}</p>
+            </div>
+          )}
+
+          {authLoading && user && !profile && !showRoleSelection && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 text-sm font-medium flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <p>Initializing terminal and syncing identity...</p>
             </div>
           )}
 

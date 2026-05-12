@@ -193,7 +193,7 @@ export default function Dashboard() {
                    {isInvestor ? 'Current Holdings' : 'My Listings'}
                  </h3>
                  <button 
-                  onClick={() => navigate(isInvestor ? '/marketplace' : '/borrower-form')} 
+                  onClick={() => navigate(isInvestor ? '/marketplace' : '/borrower')} 
                   className="text-sm font-bold text-blue-600 hover:underline"
                  >
                    {isInvestor ? 'Deploy Capital' : 'Request Loan'}

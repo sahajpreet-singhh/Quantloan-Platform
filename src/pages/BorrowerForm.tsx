@@ -41,10 +41,11 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 
 export default function BorrowerForm() {
   const navigate = useNavigate();
-  const { user, profile, logout } = useAuth();
+  const { user, profile, loading: authLoading, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     company_name: '',
+    company_description: '',
     purpose: '',
     amount: '',
     interest_rate: '',
@@ -53,6 +54,49 @@ export default function BorrowerForm() {
     debt: '',
     cashflow: ''
   });
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    navigate('/');
+    return null;
+  }
+
+  if (!profile) {
+    // If auth is loaded but profile isn't found, maybe registration isn't complete
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+          <p className="text-slate-600 mb-4 font-medium">Session initialized but identity not found.</p>
+          <button onClick={() => navigate('/')} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors">
+            Finalize Registration
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (profile.role !== 'Borrower') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-center">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Restricted</h2>
+          <p className="text-slate-600 mb-6 font-medium">
+            Your terminal is optimized for <strong>Investors</strong>. The Borrower Portal is restricted to enterprise accounts.
+          </p>
+          <button onClick={() => navigate('/dashboard')} className="bg-slate-900 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-800 transition-colors">
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     await logout();
@@ -84,6 +128,7 @@ export default function BorrowerForm() {
       await addDoc(collection(db, 'loans'), {
         borrowerId: user.uid,
         companyName: form.company_name,
+        companyDescription: form.company_description,
         amount: Number(form.amount),
         interestRate: Number(form.interest_rate),
         revenue: rev,
@@ -157,7 +202,16 @@ export default function BorrowerForm() {
                     required 
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-sm font-semibold text-slate-700">Company Description</label>
+                  <textarea 
+                    placeholder="Describe your company's core business, history, and market position..." 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]" 
+                    onChange={e=>setForm({...form, company_description: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
                   <label className="text-sm font-semibold text-slate-700">Loan Purpose</label>
                   <input 
                     placeholder="e.g. Scaling infrastructure" 

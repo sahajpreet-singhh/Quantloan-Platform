@@ -20,21 +20,25 @@ export default function Marketplace() {
   const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { profile, logout } = useAuth();
+  const { profile, loading: authLoading, logout } = useAuth();
 
   useEffect(() => {
+    if (authLoading) return;
+    
+    setLoading(true);
     const q = query(collection(db, 'loans'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setLoans(loanData);
       setLoading(false);
     }, (error) => {
+      console.error("Marketplace onSnapshot error:", error);
       handleFirestoreError(error, OperationType.LIST, 'loans');
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [authLoading]);
 
   const handleLogout = async () => {
     await logout();
@@ -60,7 +64,11 @@ export default function Marketplace() {
           </nav>
           <div className="h-6 w-px bg-slate-200" />
           <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-500 font-medium hidden sm:block">Investor: <span className="text-slate-900 font-bold">{profile?.name}</span></span>
+            {profile && (
+              <span className="text-sm text-slate-500 font-medium hidden sm:block">
+                {profile.role}: <span className="text-slate-900 font-bold">{profile.name}</span>
+              </span>
+            )}
             <button onClick={handleLogout} className="text-slate-400 hover:text-red-500 transition-colors">
               <LogOut className="w-5 h-5" />
             </button>
@@ -69,6 +77,15 @@ export default function Marketplace() {
       </header>
 
       <main className="max-w-7xl mx-auto py-10 px-8">
+        {(authLoading || loading) && (
+          <div className="fixed inset-0 bg-slate-50/80 backdrop-blur-sm z-[60] flex items-center justify-center">
+            <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 flex flex-col items-center gap-4">
+              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <p className="text-slate-600 font-bold uppercase tracking-widest text-xs">Syncing Quant Terminal...</p>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div>
             <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Investment Opportunities</h2>
