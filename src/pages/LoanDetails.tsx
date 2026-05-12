@@ -7,7 +7,9 @@ import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/fires
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const aiInitKey = process.env.GEMINI_API_KEY;
+// Note: We initialize inside the function to be safer with dynamic keys, 
+// but we keep this as a fallback if needed.
 
 enum OperationType {
   WRITE = 'write',
@@ -17,6 +19,15 @@ enum OperationType {
 
 function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
   console.error('Firestore Error: ', error);
+}
+
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
 }
 
 export default function LoanDetails() {
@@ -32,6 +43,17 @@ export default function LoanDetails() {
   useEffect(() => {
     if (!id) return;
     
+    // Check for API key if using models that might need it
+    const checkApiKey = async () => {
+      if (window.aistudio && !process.env.GEMINI_API_KEY && !process.env.API_KEY) {
+        const hasKey = await window.aistudio.hasSelectedApiKey?.();
+        if (!hasKey) {
+          console.log("No API key detected, prompt might be needed");
+        }
+      }
+    };
+    checkApiKey();
+
     const fetchLoan = async () => {
       try {
         const docRef = doc(db, 'loans', id);
@@ -53,9 +75,31 @@ export default function LoanDetails() {
   }, [id, navigate]);
 
   const runAiAnalysis = async (loanData: any) => {
-    if (!loanData || !process.env.GEMINI_API_KEY) return;
+    let apiKey = process.env.GEMINI_API_KEY || (process.env as any).API_KEY;
+    
+    // Fallback selection if no key is present
+    if (!apiKey && window.aistudio) {
+      try {
+        const hasKey = await window.aistudio.hasSelectedApiKey?.();
+        if (!hasKey) {
+          await window.aistudio.openSelectKey?.();
+        }
+        // In this environment, the key selection injects via process.env.API_KEY
+        apiKey = (process.env as any).API_KEY;
+      } catch (err) {
+        console.error("Key selection failed", err);
+      }
+    }
+
+    if (!loanData || !apiKey) {
+      console.warn("AI Analysis aborted: missing data or API key", { hasData: !!loanData, hasKey: !!apiKey });
+      setAiAnalysis("AI reasoning requires a Gemini API key. Please check your platform settings.");
+      return;
+    }
+    
     setAnalyzing(true);
     try {
+      const genAI = new GoogleGenAI({ apiKey });
       const prompt = `You are a high-end Quant Bank Analyst. Analyze this enterprise loan request and provide a 3-paragraph "Deep Tissue Analysis":
       Company: ${loanData.companyName}
       Purpose: ${loanData.purpose}
@@ -70,15 +114,21 @@ export default function LoanDetails() {
       3. Strategic recommendation for institutional investors.
       Keep it professional, technical, and data-driven. Use markdown for bolding key terms.`;
 
-      const response = await ai.models.generateContent({
+      const response = await genAI.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: prompt,
       });
 
       setAiAnalysis(response.text);
-    } catch (err) {
+    } catch (err: any) {
       console.error("AI Analysis failed:", err);
-      setAiAnalysis("Unable to generate AI analysis at this time.");
+      if (err.message?.includes('403') || err.message?.includes('PERMISSION_DENIED') || err.message?.includes('API_KEY_INVALID')) {
+        setAiAnalysis("Analysis paused: API authorization failed. Please verify your Gemini API key in the Platform Settings.");
+      } else if (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED')) {
+        setAiAnalysis("Analysis paused: Gemini quota exceeded. Please try again in a few minutes or upgrade your plan.");
+      } else {
+        setAiAnalysis("Unable to generate AI analysis at this time.");
+      }
     } finally {
       setAnalyzing(false);
     }
