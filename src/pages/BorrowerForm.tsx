@@ -122,7 +122,7 @@ export default function BorrowerForm() {
       let rawScore = (rev * 0.3) + (prf * 0.3) - (dbt * 0.2) + (csh * 0.2);
       let score = Math.max(0, Math.min(100, Math.round(rawScore)));
       let grade: 'A' | 'B' | 'C' = 'C';
-      if (score >= 70) grade = 'A';
+      if (score >= 60) grade = 'A';
       else if (score >= 40) grade = 'B';
 
       let explanation = `Risk Grade ${grade}. `;
