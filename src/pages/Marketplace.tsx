@@ -28,7 +28,9 @@ export default function Marketplace() {
     setLoading(true);
     const q = query(collection(db, 'loans'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loanData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const loanData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((l: any) => l.amount > 0 && l.status !== 'unlisted');
       setLoans(loanData);
       setLoading(false);
     }, (error) => {

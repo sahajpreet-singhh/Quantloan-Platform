@@ -2,14 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Wallet, Briefcase, TrendingUp, ArrowRight, ExternalLink, LogOut } from 'lucide-react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { Wallet, Briefcase, TrendingUp, ArrowRight, ExternalLink, LogOut, AlertTriangle, X } from 'lucide-react';
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
 enum OperationType {
   LIST = 'list',
   GET = 'get',
+  WRITE = 'write',
 }
 
 function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
@@ -19,6 +20,9 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
 export default function Dashboard() {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showUnlistModal, setShowUnlistModal] = useState(false);
+  const [selectedLoanId, setSelectedLoanId] = useState<string | null>(null);
+  const [unlisting, setUnlisting] = useState(false);
   const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -43,6 +47,33 @@ export default function Dashboard() {
 
     return () => unsubscribe();
   }, [user, profile]);
+
+  const handleUnlistClick = (e: React.MouseEvent, loanId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedLoanId(loanId);
+    setShowUnlistModal(true);
+  };
+
+  const confirmUnlist = async () => {
+    if (!selectedLoanId) return;
+    setUnlisting(true);
+    try {
+      const loanRef = doc(db, 'loans', selectedLoanId);
+      await updateDoc(loanRef, {
+        status: 'unlisted',
+        amount: 0
+      });
+      setShowUnlistModal(false);
+      setSelectedLoanId(null);
+      alert('Company successfully unlisted from Marketplace.');
+    } catch (error: any) {
+      handleFirestoreError(error, OperationType.WRITE, `loans/${selectedLoanId}`);
+      alert(`Error unlisting company: ${error.message || 'Unknown error'}`);
+    } finally {
+      setUnlisting(false);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -215,15 +246,30 @@ export default function Dashboard() {
                              <td className="px-8 py-5">
                                 <div className="flex items-center gap-3">
                                    <div className={`w-2 h-2 rounded-full ${item.grade === 'A' ? 'bg-emerald-500' : item.grade === 'B' ? 'bg-amber-500' : 'bg-rose-500'}`} />
-                                   <span className="font-bold text-slate-800">{item.companyName}</span>
+                                   <span className="font-bold text-slate-800">
+                                     {item.companyName}
+                                     {item.status === 'unlisted' && (
+                                       <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-black uppercase tracking-widest leading-none">Unlisted</span>
+                                     )}
+                                   </span>
                                 </div>
                              </td>
                              <td className="px-8 py-5 font-medium text-slate-600">₹{Number(item.amount || 0).toLocaleString()}</td>
                              <td className="px-8 py-5 text-blue-600 font-bold">{item.interestRate || item.rate}%</td>
                              <td className="px-8 py-5 text-right">
-                                <button onClick={() => navigate(isInvestor ? `/loan/${item.loanId}` : `/loan/${item.id}`)} className="text-slate-300 group-hover:text-blue-600 transition-colors">
-                                   <ExternalLink className="w-4 h-4 ml-auto" />
-                                </button>
+                                <div className="flex items-center justify-end gap-3">
+                                   {!isInvestor && item.status !== 'unlisted' && (
+                                     <button 
+                                       onClick={(e) => handleUnlistClick(e, item.id)}
+                                       className="relative z-10 text-[10px] font-black text-rose-500 hover:bg-rose-50 px-3 py-1.5 rounded border border-rose-200 transition-colors uppercase whitespace-nowrap cursor-pointer"
+                                     >
+                                       Unlist
+                                     </button>
+                                   )}
+                                   <button onClick={() => navigate(isInvestor ? `/loan/${item.loanId}` : `/loan/${item.id}`)} className="text-slate-300 group-hover:text-blue-600 transition-colors">
+                                      <ExternalLink className="w-4 h-4 ml-auto" />
+                                   </button>
+                                </div>
                              </td>
                           </tr>
                        ))}
@@ -240,6 +286,61 @@ export default function Dashboard() {
            </motion.div>
         </div>
       </main>
+
+      {/* Confirmation Modal */}
+      {showUnlistModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => !unlisting && setShowUnlistModal(false)}
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden"
+          >
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <button 
+                  onClick={() => setShowUnlistModal(false)}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Unlist Company?</h3>
+              <p className="text-slate-500 leading-relaxed">
+                This will immediately remove your company from the public marketplace. Pending investments may be affected. This action can be reversed by re-submitting your loan details.
+              </p>
+              
+              <div className="mt-8 flex flex-col gap-3">
+                <button 
+                  disabled={unlisting}
+                  onClick={confirmUnlist}
+                  className="w-full bg-rose-500 text-white p-4 rounded-xl font-bold hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {unlisting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : 'Confirm Unlisting'}
+                </button>
+                <button 
+                  disabled={unlisting}
+                  onClick={() => setShowUnlistModal(false)}
+                  className="w-full bg-slate-100 text-slate-600 p-4 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

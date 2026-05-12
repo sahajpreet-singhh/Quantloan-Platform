@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Phone, Mail, MapPin, User } from 'lucide-react';
-import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, addDoc, collection, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,8 +12,28 @@ enum OperationType {
   GET = 'get',
 }
 
-function handleFirestoreError(error: any, operationType: OperationType, path: string | null) {
-  console.error('Firestore Error: ', error);
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  }
+}
+
+function handleFirestoreError(error: any, operationType: OperationType, path: string | null, userId?: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: userId,
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
 }
 
 export default function LoanDetails() {
@@ -39,17 +59,18 @@ export default function LoanDetails() {
           navigate('/marketplace');
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `loans/${id}`);
+        handleFirestoreError(error, OperationType.GET, `loans/${id}`, user?.uid);
       }
     };
 
     fetchLoan();
-  }, [id, navigate]);
+  }, [id, navigate, user?.uid]);
 
   const handleInvest = async () => {
     if (!user || !loan || profile?.role !== 'Investor') return;
     setInvesting(true);
     try {
+      // 1. Create the investment record
       await addDoc(collection(db, 'investments'), {
         investorId: user.uid,
         loanId: loan.id,
@@ -58,12 +79,22 @@ export default function LoanDetails() {
         grade: loan.grade,
         interestRate: loan.interestRate,
         createdAt: serverTimestamp()
+      }).catch(err => {
+        handleFirestoreError(err, OperationType.CREATE, 'investments', user.uid);
       });
+
+      // 2. Decrease the loan amount
+      const loanRef = doc(db, 'loans', loan.id);
+      await updateDoc(loanRef, {
+        amount: increment(-simAmount)
+      }).catch(err => {
+        handleFirestoreError(err, OperationType.WRITE, `loans/${loan.id}`, user.uid);
+      });
+
       alert('Investment execution successful! Position added to portfolio.');
       navigate('/dashboard');
     } catch(err: any) {
-      console.error("Investment Error:", err);
-      handleFirestoreError(err, OperationType.CREATE, 'investments');
+      console.error("Investment Execution Failed:", err);
       alert("Error executing investment. Check permissions and network.");
     } finally {
       setInvesting(false);
@@ -252,19 +283,25 @@ export default function LoanDetails() {
                    </div>
                 </div>
 
-                <div className="space-y-4">
+                  <div className="space-y-4">
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
                     <input 
                       type="number" 
                       placeholder="Investment Amount" 
-                      className="w-full bg-white/10 border border-white/20 rounded-xl p-4 pl-8 text-white font-bold outline-none focus:border-blue-500 transition-all"
+                      className={`w-full bg-white/10 border rounded-xl p-4 pl-8 text-white font-bold outline-none transition-all ${simAmount > (loan?.amount || 0) ? 'border-rose-500 bg-rose-500/10' : 'border-white/20 focus:border-blue-500'}`}
                       onChange={e => setSimAmount(Number(e.target.value))}
                     />
                   </div>
 
+                  {simAmount > (loan?.amount || 0) && (
+                    <p className="text-rose-400 text-[10px] font-bold uppercase tracking-widest text-center">
+                      Amount exceeds remaining capital needed (₹{Number(loan?.amount || 0).toLocaleString()})
+                    </p>
+                  )}
+
                   <button 
-                    disabled={investing || !simAmount || profile?.role !== 'Investor'}
+                    disabled={investing || !simAmount || profile?.role !== 'Investor' || simAmount > (loan?.amount || 0)}
                     onClick={handleInvest}
                     className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold text-lg hover:bg-blue-500 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                   >

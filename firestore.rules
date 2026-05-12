@@ -14,30 +14,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
     // 1. Users Collection
     match /users/{userId} {
-      allow read, write: if isSignedIn() && (userId == request.auth.uid);
+      allow read, write: if isOwner(userId);
     }
 
     // 2. Loans Collection
     match /loans/{loanId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && incoming().borrowerId == request.auth.uid;
-      allow update: if isSignedIn() && existing().borrowerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.borrowerId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        (resource.data.borrowerId == request.auth.uid && request.resource.data.borrowerId == request.auth.uid) || 
+        (request.resource.data.amount < resource.data.amount && 
+         request.resource.data.amount >= 0 &&
+         request.resource.data.borrowerId == resource.data.borrowerId)
+      );
+      allow delete: if isSignedIn() && resource.data.borrowerId == request.auth.uid;
     }
 
     // 3. Investments Collection
     match /investments/{investmentId} {
-      allow read: if isSignedIn() && (resource == null || resource.data.investorId == request.auth.uid);
-      allow create: if isSignedIn() && incoming().investorId == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.investorId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.investorId == request.auth.uid;
     }
   }
 }
