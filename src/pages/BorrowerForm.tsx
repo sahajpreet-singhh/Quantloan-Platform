@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { LayoutDashboard, LogOut, Send, AlertCircle } from 'lucide-react';
@@ -52,20 +52,25 @@ export default function BorrowerForm() {
     revenue: '',
     profit: '',
     debt: '',
-    cashflow: ''
+    cashflow: '',
+    lister_name: '',
+    lister_phone: '',
+    lister_email: '',
+    office_address: ''
   });
 
-  if (authLoading) {
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/');
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading || !user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
-  }
-
-  if (!user) {
-    navigate('/');
-    return null;
   }
 
   if (!profile) {
@@ -117,8 +122,8 @@ export default function BorrowerForm() {
       let rawScore = (rev * 0.3) + (prf * 0.3) - (dbt * 0.2) + (csh * 0.2);
       let score = Math.max(0, Math.min(100, Math.round(rawScore)));
       let grade: 'A' | 'B' | 'C' = 'C';
-      if (score >= 80) grade = 'A';
-      else if (score >= 60) grade = 'B';
+      if (score >= 70) grade = 'A';
+      else if (score >= 40) grade = 'B';
 
       let explanation = `Risk Grade ${grade}. `;
       if (dbt > prf) explanation += "High debt relative to profit increases risk. ";
@@ -131,6 +136,10 @@ export default function BorrowerForm() {
         companyDescription: form.company_description,
         amount: Number(form.amount),
         interestRate: Number(form.interest_rate),
+        listerName: form.lister_name,
+        listerPhone: form.lister_phone,
+        listerEmail: form.lister_email,
+        officeAddress: form.office_address,
         revenue: rev,
         profit: prf,
         debt: dbt,
@@ -238,6 +247,53 @@ export default function BorrowerForm() {
                     placeholder="12.5" 
                     className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
                     onChange={e=>setForm({...form, interest_rate: e.target.value})} 
+                    required 
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <LayoutDashboard className="w-5 h-5 text-blue-600" />
+                Lister Contact Details
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Lister Name</label>
+                  <input 
+                    placeholder="Full Name" 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    onChange={e=>setForm({...form, lister_name: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Contact Number</label>
+                  <input 
+                    type="tel"
+                    placeholder="+91 98765 43210" 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    onChange={e=>setForm({...form, lister_phone: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Contact Email</label>
+                  <input 
+                    type="email"
+                    placeholder="lister@company.com" 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                    onChange={e=>setForm({...form, lister_email: e.target.value})} 
+                    required 
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-sm font-semibold text-slate-700">Office Address</label>
+                  <textarea 
+                    placeholder="Full Registered Office Address" 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]" 
+                    onChange={e=>setForm({...form, office_address: e.target.value})} 
                     required 
                   />
                 </div>

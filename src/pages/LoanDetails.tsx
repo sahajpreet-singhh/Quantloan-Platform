@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Sparkles } from 'lucide-react';
+import { ArrowLeft, TrendingUp, ShieldCheck, ChevronRight, Building, Wallet, Briefcase, Sparkles, Phone, Mail, MapPin, User } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -181,6 +181,47 @@ export default function LoanDetails() {
                     retention rate of 85%. The capital will be deployed primarily for operational scaling 
                     and infrastructure modularization.
                   </p>
+                </div>
+
+                <div className="pt-6 mt-6 border-t border-slate-100">
+                  <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-blue-600" />
+                    Lister & Contact Verification
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <User className="w-4 h-4 text-slate-400 mt-1" />
+                        <div>
+                          <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Representative</p>
+                          <p className="text-sm font-bold text-slate-900">{loan.listerName || "Not Available"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Phone className="w-4 h-4 text-slate-400 mt-1" />
+                        <div>
+                          <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Phone</p>
+                          <p className="text-sm font-bold text-slate-900">{loan.listerPhone || "Not Available"}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <Mail className="w-4 h-4 text-slate-400 mt-1" />
+                        <div>
+                          <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Email</p>
+                          <p className="text-sm font-bold text-slate-900">{loan.listerEmail || "Not Available"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <MapPin className="w-4 h-4 text-slate-400 mt-1" />
+                        <div>
+                          <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Office Address</p>
+                          <p className="text-sm font-bold text-slate-900 leading-tight">{loan.officeAddress || "Not Available"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
