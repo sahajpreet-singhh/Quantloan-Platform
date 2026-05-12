@@ -1,6 +1,7 @@
 {
   "projectId": "quantloan-platform",
   "appId": "1:1065055709620:web:d54beda3591ea3607eeae1",
+  "apiKey": "AIzaSyBxqjaUIYdaGdpIkL3X7BsRYzQni9zlPdg",
   "authDomain": "quantloan-platform.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-aebc9f66-5ba7-4368-9fdf-45dfe2d066d9",
   "storageBucket": "quantloan-platform.firebasestorage.app",
