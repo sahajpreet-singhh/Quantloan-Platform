@@ -97,6 +97,8 @@ export default function Auth() {
       console.error("Google Auth Error:", err);
       if (err.code === 'auth/popup-closed-by-user') {
         setErrorMsg("Sign-in window was closed. Please try again.");
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg("This domain is not authorized in Firebase Console. Go to Authentication > Settings > Authorized Domains and add your Vercel URL.");
       } else {
         setErrorMsg(err.message || "Authentication failed!");
       }
@@ -121,7 +123,11 @@ export default function Auth() {
       await checkUserProfile(authUser);
     } catch (err: any) {
       console.error("Email Auth Error:", err);
-      if (isLogin) {
+      if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg("Authorized Domain Error: This URL is not allowed to sign in. In Firebase Console, go to Authentication > Settings > Authorized Domains and add your current URL.");
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg("Sign-in Method Disabled: Email/Password sign-in is not enabled. In Firebase Console, go to Authentication > Sign-in method and enable 'Email/Password'.");
+      } else if (isLogin) {
         if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
           setErrorMsg("Email or password is incorrect.");
         } else {

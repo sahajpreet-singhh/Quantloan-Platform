@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0150019665",
-  "appId": "1:443137763598:web:08a8135499ac5092d04f5f",
-  "apiKey": "AIzaSyDirGZr7zAIySRL3GElIk7shJuF8H96Lpc",
-  "authDomain": "gen-lang-client-0150019665.firebaseapp.com",
+  "projectId": "quantloan-platform",
+  "appId": "1:1065055709620:web:d54beda3591ea3607eeae1",
+  "apiKey": "AIzaSyBxqjaUIYdaGdpIkL3X7BsRYzQni9zlPdg",
+  "authDomain": "quantloan-platform.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-aebc9f66-5ba7-4368-9fdf-45dfe2d066d9",
-  "storageBucket": "gen-lang-client-0150019665.firebasestorage.app",
-  "messagingSenderId": "443137763598",
+  "storageBucket": "quantloan-platform.firebasestorage.app",
+  "messagingSenderId": "1065055709620",
   "measurementId": ""
 }
